@@ -28,14 +28,20 @@ void drawMainMenu() {
     M5.Lcd.drawString("SYSTEM CONTROLLER", 160, 22, 4); // Clean size 4 font
     
     // 3b. Battery Indicator
-    float batVolts = M5.Axp.GetBatVoltage();
-    bool isCharging = M5.Axp.isCharging();
+    float batVolts = 0.0f;
+    bool isCharging = false;
+    if (IMUEngine::imuMutex != NULL && xSemaphoreTake(IMUEngine::imuMutex, portMAX_DELAY) == pdTRUE) {
+        batVolts = M5.Axp.GetBatVoltage();
+        isCharging = M5.Axp.isCharging();
+        xSemaphoreGive(IMUEngine::imuMutex);
+    }
+    
     int batPct = (int)((batVolts < 3.2f) ? 0 : (batVolts - 3.2f) * 100.0f);
     if (batPct > 100) batPct = 100;
     M5.Lcd.setTextDatum(MR_DATUM);
     M5.Lcd.setTextColor(isCharging ? 0x07E0 : TFT_WHITE); // Green if charging
     char batBuf[16];
-    sprintf(batBuf, "%d%%", batPct);
+    sprintf(batBuf, "BAT: %d%%", batPct);
     M5.Lcd.drawString(batBuf, 312, 22, 2);
 
     // 4. Button 1: SD Tester (Cyan theme)

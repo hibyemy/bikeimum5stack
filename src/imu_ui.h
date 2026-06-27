@@ -30,16 +30,33 @@ inline void drawStaticPanels(TFT_eSprite& sprite) {
     sprite.fillRect(0, 0, 320, 35, 0x10A2); // Sapphire header
     sprite.drawFastHLine(0, 35, 320, 0x07FF); // Cyan divider line
     
-    // Left IMU Source
+    // Left Battery and IMU Source
     sprite.setTextDatum(ML_DATUM);
+    
+    // 1. Battery Indicator
+    float batVolts = 0.0f;
+    bool isCharging = false;
+    if (IMUEngine::imuMutex != NULL && xSemaphoreTake(IMUEngine::imuMutex, portMAX_DELAY) == pdTRUE) {
+        batVolts = M5.Axp.GetBatVoltage();
+        isCharging = M5.Axp.isCharging();
+        xSemaphoreGive(IMUEngine::imuMutex);
+    }
+    int batPct = (int)((batVolts < 3.2f) ? 0 : (batVolts - 3.2f) * 100.0f);
+    if (batPct > 100) batPct = 100;
+    sprite.setTextColor(isCharging ? 0x07E0 : TFT_WHITE);
+    char batBuf[16];
+    sprintf(batBuf, "BAT: %d%%", batPct);
+    sprite.drawString(batBuf, 8, 12, 2); // Larger Font 2
+    
+    // 2. IMU Source
     bool extIMU = IMUEngine::getBmi160Detected();
     bool onboardIMU = IMUEngine::getOnboardImuDetected();
     if (!extIMU && !onboardIMU) {
         sprite.setTextColor(TFT_RED);
-        sprite.drawString("NO IMU DETECTED!", 8, 17, 1);
+        sprite.drawString("NO IMU DETECTED!", 8, 26, 1);
     } else {
-        sprite.setTextColor(0x07E0); // Green
-        sprite.drawString(extIMU ? "IMU: BMI160" : "IMU: MPU6886", 8, 17, 1);
+        sprite.setTextColor(0x07FF); // Cyan
+        sprite.drawString(extIMU ? "IMU: BMI160" : "IMU: MPU6886", 8, 26, 1);
     }
     
     // Title
@@ -47,29 +64,17 @@ inline void drawStaticPanels(TFT_eSprite& sprite) {
     sprite.setTextDatum(MC_DATUM);
     sprite.drawString("9DOF RACING TELEMETRY", 160, 17, 2); // Font 2 for title
     
-    // Right GPS Status and Battery
+    // Right GPS Status
     uint32_t sats = IMUEngine::getGpsSats();
     sprite.setTextDatum(MR_DATUM);
-    
-    // Battery Indicator (Top Right)
-    float batVolts = M5.Axp.GetBatVoltage();
-    bool isCharging = M5.Axp.isCharging();
-    int batPct = (int)((batVolts < 3.2f) ? 0 : (batVolts - 3.2f) * 100.0f);
-    if (batPct > 100) batPct = 100;
-    sprite.setTextColor(isCharging ? 0x07E0 : TFT_WHITE);
-    char batBuf[16];
-    sprintf(batBuf, "BAT: %d%%", batPct);
-    sprite.drawString(batBuf, 312, 10, 1);
-    
-    // GPS Status (Below Battery)
     if (sats == 0) {
         sprite.setTextColor(TFT_RED);
-        sprite.drawString("GPS: NO LOCK", 312, 24, 1);
+        sprite.drawString("GPS: NO LOCK", 312, 17, 2); // Increased to Font 2
     } else {
         sprite.setTextColor(0x07E0); // Green
         char gpsBuf[32];
-        sprintf(gpsBuf, "GPS: OK (%d SATS)", sats);
-        sprite.drawString(gpsBuf, 312, 24, 1);
+        sprintf(gpsBuf, "GPS: OK (%d)", sats);
+        sprite.drawString(gpsBuf, 312, 17, 2); // Increased to Font 2
     }
 
     // 2. Bottom Button Zone (Y: 212 to 238)

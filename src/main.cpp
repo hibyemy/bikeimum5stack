@@ -763,9 +763,38 @@ bool booted_from_usb = false;
 void powerTask(void* pvParameters) {
     while (true) {
         if (booted_from_usb) {
+            bool vbus = false;
+            bool acin = false;
+            float batVolts = 0.0f;
+            if (IMUEngine::imuMutex != NULL && xSemaphoreTake(IMUEngine::imuMutex, portMAX_DELAY) == pdTRUE) {
+                vbus = M5.Axp.isVBUS();
+                acin = M5.Axp.isACIN();
+                batVolts = M5.Axp.GetBatVoltage();
+                xSemaphoreGive(IMUEngine::imuMutex);
+            }
+            
             // If we booted because USB power was applied, and now USB power is gone, shut down
-            if (!M5.Axp.isVBUS() && !M5.Axp.isACIN()) {
-                M5.Axp.PowerOff();
+            if (!vbus && !acin) {
+                if (IMUEngine::imuMutex != NULL && xSemaphoreTake(IMUEngine::imuMutex, portMAX_DELAY) == pdTRUE) {
+                    M5.Axp.PowerOff();
+                    xSemaphoreGive(IMUEngine::imuMutex);
+                }
+            }
+        } else {
+            // Even if not booted from USB, check for critically low battery
+            float batVolts = 0.0f;
+            bool vbus = false;
+            if (IMUEngine::imuMutex != NULL && xSemaphoreTake(IMUEngine::imuMutex, portMAX_DELAY) == pdTRUE) {
+                batVolts = M5.Axp.GetBatVoltage();
+                vbus = M5.Axp.isVBUS();
+                xSemaphoreGive(IMUEngine::imuMutex);
+            }
+            
+            if (batVolts > 0.1f && batVolts < 3.2f && !vbus) {
+                if (IMUEngine::imuMutex != NULL && xSemaphoreTake(IMUEngine::imuMutex, portMAX_DELAY) == pdTRUE) {
+                    M5.Axp.PowerOff();
+                    xSemaphoreGive(IMUEngine::imuMutex);
+                }
             }
         }
         vTaskDelay(pdMS_TO_TICKS(1000)); // Check every 1 second
@@ -776,6 +805,11 @@ void setup() {
     // 1. Initialize M5Stack Core2 hardware
     // This turns on the AXP192 power manager, enabling power (LDO2) to LCD and SD Card
     M5.begin();
+    
+    // Globally initialize the I2C mutex immediately so background tasks can use it
+    if (IMUEngine::imuMutex == NULL) {
+        IMUEngine::imuMutex = xSemaphoreCreateMutex();
+    }
     
     // Limit AXP192 Battery Charge Voltage to 4.10V (approx 80-90%) to preserve lifespan
     Wire1.beginTransmission(0x34); // AXP192 I2C address
