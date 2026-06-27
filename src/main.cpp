@@ -757,6 +757,21 @@ void runWifiRadar() {
     delay(200);
 }
 
+// Auto Power-Off Logic
+bool booted_from_usb = false;
+
+void powerTask(void* pvParameters) {
+    while (true) {
+        if (booted_from_usb) {
+            // If we booted because USB power was applied, and now USB power is gone, shut down
+            if (!M5.Axp.isVBUS() && !M5.Axp.isACIN()) {
+                M5.Axp.PowerOff();
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000)); // Check every 1 second
+    }
+}
+
 void setup() {
     // 1. Initialize M5Stack Core2 hardware
     // This turns on the AXP192 power manager, enabling power (LDO2) to LCD and SD Card
@@ -787,6 +802,15 @@ void setup() {
     } else {
         Serial.println("[SYSTEM] Warning: SD card failed to initialize on startup.");
     }
+
+    // Check if device booted due to USB power insertion
+    if (M5.Axp.isVBUS() || M5.Axp.isACIN()) {
+        booted_from_usb = true;
+        Serial.println("[SYSTEM] Booted from USB power. Auto Power-Off Enabled.");
+    }
+
+    // Spawn power management background task (Core 1, low priority)
+    xTaskCreatePinnedToCore(powerTask, "PowerTask", 2048, NULL, 1, NULL, 1);
 
     // 3. Launch UI Loop
     runMainMenu();
