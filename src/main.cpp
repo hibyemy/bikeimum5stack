@@ -10,6 +10,7 @@
 #include "sd_diagnostics.h"
 #include "menu_ui.h"
 #include "wifi_radar.h"
+#include "imu_ui.h"
 
 // Track SD initialization state globally
 bool isSdInitialized = false;
@@ -126,7 +127,9 @@ void runSdTester() {
     waitForTouchRelease();
 
     while (true) {
+        if (IMUEngine::imuMutex != NULL) xSemaphoreTake(IMUEngine::imuMutex, portMAX_DELAY);
         M5.update();
+        if (IMUEngine::imuMutex != NULL) xSemaphoreGive(IMUEngine::imuMutex);
 
         TouchPoint_t pos = M5.Touch.getPressPoint();
         if (pos.x != -1) {
@@ -149,7 +152,9 @@ void runSdTester() {
                 bool confirmed = false;
                 uint32_t firstTapTime = 0;
                 while (true) {
+                    if (IMUEngine::imuMutex != NULL) xSemaphoreTake(IMUEngine::imuMutex, portMAX_DELAY);
                     M5.update();
+                    if (IMUEngine::imuMutex != NULL) xSemaphoreGive(IMUEngine::imuMutex);
                     if (isHomeButtonPressed()) {
                         break;
                     }
@@ -224,7 +229,9 @@ void runSdTester() {
                 bool confirmed = false;
                 uint32_t firstTapTime = 0;
                 while (true) {
+                    if (IMUEngine::imuMutex != NULL) xSemaphoreTake(IMUEngine::imuMutex, portMAX_DELAY);
                     M5.update();
+                    if (IMUEngine::imuMutex != NULL) xSemaphoreGive(IMUEngine::imuMutex);
                     if (isHomeButtonPressed()) {
                         break;
                     }
@@ -293,7 +300,9 @@ void runSdTester() {
                 bool confirmed = false;
                 uint32_t firstTapTime = 0;
                 while (true) {
+                    if (IMUEngine::imuMutex != NULL) xSemaphoreTake(IMUEngine::imuMutex, portMAX_DELAY);
                     M5.update();
+                    if (IMUEngine::imuMutex != NULL) xSemaphoreGive(IMUEngine::imuMutex);
                     if (isHomeButtonPressed()) {
                         break;
                     }
@@ -592,7 +601,9 @@ void runWifiRadar() {
     M5.Lcd.drawRect(GRAPH_X - 1, H_GRAPH_Y - 1, GRAPH_WIDTH + 2, H_GRAPH_HEIGHT + 2, 0x8000); // Dark red frame
 
     while (true) {
+        if (IMUEngine::imuMutex != NULL) xSemaphoreTake(IMUEngine::imuMutex, portMAX_DELAY);
         M5.update();
+        if (IMUEngine::imuMutex != NULL) xSemaphoreGive(IMUEngine::imuMutex);
 
         // Check if Center button pressed to exit
         if (isHomeButtonPressed()) {
@@ -750,6 +761,21 @@ void setup() {
     // 1. Initialize M5Stack Core2 hardware
     // This turns on the AXP192 power manager, enabling power (LDO2) to LCD and SD Card
     M5.begin();
+    
+    // Limit AXP192 Battery Charge Voltage to 4.10V (approx 80-90%) to preserve lifespan
+    Wire1.beginTransmission(0x34); // AXP192 I2C address
+    Wire1.write(0x33);             // Charge control register 1
+    Wire1.endTransmission();
+    Wire1.requestFrom((uint8_t)0x34, (uint8_t)1);
+    if (Wire1.available()) {
+        uint8_t reg33 = Wire1.read();
+        // Bits [6:5] control charge voltage: 00 = 4.10V, 01 = 4.15V, 10 = 4.20V (default)
+        reg33 &= ~(0b01100000); // Clear bits 5 and 6 to set 4.10V
+        Wire1.beginTransmission(0x34);
+        Wire1.write(0x33);
+        Wire1.write(reg33);
+        Wire1.endTransmission();
+    }
     
     Serial.println("[SYSTEM] Booting M5Stack Core2 App Launcher...");
 
