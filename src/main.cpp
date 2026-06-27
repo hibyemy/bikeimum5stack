@@ -764,17 +764,15 @@ void powerTask(void* pvParameters) {
     while (true) {
         if (booted_from_usb) {
             bool vbus = false;
-            bool acin = false;
             float batVolts = 0.0f;
             if (IMUEngine::imuMutex != NULL && xSemaphoreTake(IMUEngine::imuMutex, portMAX_DELAY) == pdTRUE) {
                 vbus = M5.Axp.isVBUS();
-                acin = M5.Axp.isACIN();
                 batVolts = M5.Axp.GetBatVoltage();
                 xSemaphoreGive(IMUEngine::imuMutex);
             }
             
             // If we booted because USB power was applied, and now USB power is gone, shut down
-            if (!vbus && !acin) {
+            if (!vbus) {
                 if (IMUEngine::imuMutex != NULL && xSemaphoreTake(IMUEngine::imuMutex, portMAX_DELAY) == pdTRUE) {
                     M5.Axp.PowerOff();
                     xSemaphoreGive(IMUEngine::imuMutex);
@@ -837,8 +835,8 @@ void setup() {
         Serial.println("[SYSTEM] Warning: SD card failed to initialize on startup.");
     }
 
-    // Check if device booted due to USB power insertion
-    if (M5.Axp.isVBUS() || M5.Axp.isACIN()) {
+    // Check if device booted due to USB power insertion (Ignore ACIN as it's tied to 5V Boost)
+    if (M5.Axp.isVBUS()) {
         booted_from_usb = true;
         Serial.println("[SYSTEM] Booted from USB power. Auto Power-Off Enabled.");
     }

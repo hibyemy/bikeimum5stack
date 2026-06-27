@@ -70,7 +70,30 @@ void drawMainMenu() {
 
     // 7. Bottom Navigation Indicator (above capacitive Button B)
     M5.Lcd.setTextColor(0x7BEF); // Subtle gray color
-    M5.Lcd.drawString("Press Center Button [B] to Exit Apps", 160, 230, 2);
+    M5.Lcd.drawString("Press Center Button [B] to Exit Apps", 160, 225, 1);
+    
+    // Debug info for Auto-Power-Off
+    extern bool booted_from_usb;
+    
+    // Read raw AXP192 USB status
+    bool vbus_raw = false;
+    bool acin_raw = false;
+    if (IMUEngine::imuMutex != NULL && xSemaphoreTake(IMUEngine::imuMutex, portMAX_DELAY) == pdTRUE) {
+        vbus_raw = M5.Axp.isVBUS();
+        acin_raw = M5.Axp.isACIN();
+        xSemaphoreGive(IMUEngine::imuMutex);
+    }
+    
+    M5.Lcd.setTextColor(0xFDA0); // Orange
+    M5.Lcd.drawString(vbus_raw ? "USB PLUGGED IN (VBUS: 1)" : "USB UNPLUGGED (VBUS: 0)", 160, 215, 1);
+    
+    if (booted_from_usb) {
+        M5.Lcd.setTextColor(0x07E0);
+        M5.Lcd.drawString("AUTO-OFF: ARMED (USB BOOT)", 160, 230, 1);
+    } else {
+        M5.Lcd.setTextColor(0x7BEF);
+        M5.Lcd.drawString("AUTO-OFF: DISABLED (MANUAL BOOT)", 160, 230, 1);
+    }
 }
 
 // Helper to check if capacitive Button B (Home/Back) was pressed
